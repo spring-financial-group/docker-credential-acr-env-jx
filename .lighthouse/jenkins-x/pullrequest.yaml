@@ -10,7 +10,7 @@ spec:
       taskSpec:
         metadata: {}
         stepTemplate:
-          image: uses:jenkins-x/jx3-pipeline-catalog/tasks/go/pullrequest.yaml@versionStream
+          image: uses:jenkins-x/jx3-pipeline-catalog/tasks/go-plugin/pullrequest.yaml@versionStream
           name: ""
           resources:
             limits: {}
@@ -27,6 +27,8 @@ spec:
           script: |
             #!/bin/sh
             make build
+        - name: make-lint
+          resources: {}
   podTemplate: {}
   serviceAccountName: tekton-bot
   timeout: 1h0m0s

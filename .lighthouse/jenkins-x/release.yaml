@@ -10,7 +10,7 @@ spec:
       taskSpec:
         metadata: {}
         stepTemplate:
-          image: uses:jenkins-x/jx3-pipeline-catalog/tasks/go/release.yaml@versionStream
+          image: uses:jenkins-x/jx3-pipeline-catalog/tasks/go-plugin/release.yaml@versionStream
           name: ""
           resources:
             limits: {}
@@ -23,13 +23,11 @@ spec:
           resources: {}
         - name: jx-variables
           resources: {}
-        - image: golang:1.19
-          name: build-make-build
+        - name: release-binary
           resources: {}
-          script: |
-            #!/bin/sh
-            make build
-        - name: promote-changelog
+        - name: changelog
+          resources: {}
+        - name: upload-binaries
           resources: {}
   podTemplate: {}
   serviceAccountName: tekton-bot

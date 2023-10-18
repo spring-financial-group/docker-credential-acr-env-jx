@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -64,7 +64,7 @@ func getServicePrincipalToken(settings auth.EnvironmentSettings, resource string
 	}
 
 	// federated OIDC JWT assertion
-	jwt, err := jwtLookup()
+	_, err := jwtLookup()
 	if err == nil {
 		clientID, isPresent := os.LookupEnv("AZURE_CLIENT_ID")
 		if !isPresent {
@@ -80,7 +80,7 @@ func getServicePrincipalToken(settings auth.EnvironmentSettings, resource string
 			return &adal.ServicePrincipalToken{}, fmt.Errorf("failed to initialise OAuthConfig - %w", err)
 		}
 
-		return adal.NewServicePrincipalTokenFromFederatedToken(*oAuthConfig, clientID, *jwt, resource)
+		return adal.NewServicePrincipalTokenFromFederatedTokenCallback(*oAuthConfig, clientID, jwtLookup, resource)
 	}
 
 	// 4. MSI
@@ -89,20 +89,19 @@ func getServicePrincipalToken(settings auth.EnvironmentSettings, resource string
 	})
 }
 
-func jwtLookup() (*string, error) {
+func jwtLookup() (string, error) {
 	jwt, isPresent := os.LookupEnv("AZURE_FEDERATED_TOKEN")
 	if isPresent {
-		return &jwt, nil
+		return jwt, nil
 	}
 
 	if jwtFile, isPresent := os.LookupEnv("AZURE_FEDERATED_TOKEN_FILE"); isPresent {
 		jwtBytes, err := os.ReadFile(jwtFile)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
-		jwt = string(jwtBytes)
-		return &jwt, nil
+		return string(jwtBytes), nil
 	}
 
-	return nil, fmt.Errorf("no JWT found")
+	return "", fmt.Errorf("no JWT found")
 }

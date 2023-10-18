@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: PipelineRun
 metadata:
-  name: release
+  name: tests
 spec:
   pipelineSpec:
     tasks:
@@ -16,21 +16,15 @@ spec:
             limits: {}
           workingDir: /workspace/source
         steps:
-        - image: uses:jenkins-x/jx3-pipeline-catalog/tasks/git-clone/git-clone.yaml@versionStream
+        - image: uses:jenkins-x/jx3-pipeline-catalog/tasks/git-clone/git-clone-pr.yaml@versionStream
           name: ""
           resources: {}
-        - name: next-version
-          resources: {}
-        - name: jx-variables
-          resources: {}
         - image: golang:1.19
-          name: build-make-build
+          name: build-make-test
           resources: {}
           script: |
             #!/bin/sh
-            make build
-        - name: promote-changelog
-          resources: {}
+            make test
   podTemplate: {}
   serviceAccountName: tekton-bot
   timeout: 1h0m0s

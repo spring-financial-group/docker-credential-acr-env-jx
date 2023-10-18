@@ -7,10 +7,21 @@ spec:
     always_run: true
     optional: false
     source: "pullrequest.yaml"
+  - name: tests
+    context: "tests"
+    run_if_changed: ^.*\.(go|mod)$
+    optional: false
+    source: "tests.yaml"
   postsubmits:
   - name: release
     context: "release"
     source: "release.yaml"
+    branches:
+    - ^main$
+    - ^master$
+  - name: tests
+    context: "tests"
+    source: "tests.yaml"
     branches:
     - ^main$
     - ^master$

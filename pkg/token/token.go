@@ -16,92 +16,36 @@ limitations under the License.
 package token
 
 import (
+	"context"
 	"fmt"
 	"os"
 
-	"github.com/Azure/go-autorest/autorest/adal"
-	"github.com/Azure/go-autorest/autorest/azure/auth"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 )
 
-func GetServicePrincipalTokenFromEnvironment() (*adal.ServicePrincipalToken, auth.EnvironmentSettings, error) {
-	settings, err := auth.GetSettingsFromEnvironment()
-	if err != nil {
-		return &adal.ServicePrincipalToken{}, auth.EnvironmentSettings{}, fmt.Errorf("failed to get auth settings from environment - %w", err)
-	}
-
-	spToken, err := getServicePrincipalToken(settings, settings.Environment.ResourceManagerEndpoint)
-	if err != nil {
-		return &adal.ServicePrincipalToken{}, auth.EnvironmentSettings{}, fmt.Errorf("failed to initialise sp token config %w", err)
-	}
-
-	return spToken, settings, nil
+// AADAccessTokenResponse wraps an AAD access token and tenant info
+type AADAccessTokenResponse struct {
+	AccessToken string
+	TenantID    string
 }
 
-// getServicePrincipalToken retrieves an Azure AD OAuth2 token from the supplied environment settings for the specified resource
-func getServicePrincipalToken(settings auth.EnvironmentSettings, resource string) (*adal.ServicePrincipalToken, error) {
-
-	//1.Client Credentials
-	if _, e := settings.GetClientCredentials(); e == nil {
-		clientCredentialsConfig, err := settings.GetClientCredentials()
-		if err != nil {
-			return &adal.ServicePrincipalToken{}, fmt.Errorf("failed to get client credentials settings from environment - %w", err)
-		}
-		oAuthConfig, err := adal.NewOAuthConfig(settings.Environment.ActiveDirectoryEndpoint, clientCredentialsConfig.TenantID)
-		if err != nil {
-			return &adal.ServicePrincipalToken{}, fmt.Errorf("failed to initialise OAuthConfig - %w", err)
-		}
-		return adal.NewServicePrincipalToken(*oAuthConfig, clientCredentialsConfig.ClientID, clientCredentialsConfig.ClientSecret, clientCredentialsConfig.Resource)
+// GetAADAccessToken retrieves an access token for ACR using the default chain.
+func GetAADAccessToken(ctx context.Context) (AADAccessTokenResponse, error) {
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		return AADAccessTokenResponse{}, fmt.Errorf("failed to create Azure credential: %w", err)
 	}
 
-	//2. Client Certificate
-	if _, e := settings.GetClientCertificate(); e == nil {
-		return &adal.ServicePrincipalToken{}, fmt.Errorf("authentication method currently unsupported")
-	}
-
-	//3. Username Password
-	if _, e := settings.GetUsernamePassword(); e == nil {
-		return &adal.ServicePrincipalToken{}, fmt.Errorf("authentication method currently unsupported")
-	}
-
-	// federated OIDC JWT assertion
-	_, err := jwtLookup()
-	if err == nil {
-		clientID, isPresent := os.LookupEnv("AZURE_CLIENT_ID")
-		if !isPresent {
-			return &adal.ServicePrincipalToken{}, fmt.Errorf("failed to get client id from environment")
-		}
-		tenantID, isPresent := os.LookupEnv("AZURE_TENANT_ID")
-		if !isPresent {
-			return &adal.ServicePrincipalToken{}, fmt.Errorf("failed to get client id from environment")
-		}
-
-		oAuthConfig, err := adal.NewOAuthConfig(settings.Environment.ActiveDirectoryEndpoint, tenantID)
-		if err != nil {
-			return &adal.ServicePrincipalToken{}, fmt.Errorf("failed to initialise OAuthConfig - %w", err)
-		}
-
-		return adal.NewServicePrincipalTokenFromFederatedTokenCallback(*oAuthConfig, clientID, jwtLookup, resource)
-	}
-
-	// 4. MSI
-	return adal.NewServicePrincipalTokenFromManagedIdentity(resource, &adal.ManagedIdentityOptions{
-		ClientID: os.Getenv("AZURE_CLIENT_ID"),
+	tok, err := cred.GetToken(ctx, policy.TokenRequestOptions{
+		Scopes: []string{"https://containerregistry.azure.net/.default"},
 	})
-}
-
-func jwtLookup() (string, error) {
-	jwt, isPresent := os.LookupEnv("AZURE_FEDERATED_TOKEN")
-	if isPresent {
-		return jwt, nil
+	if err != nil {
+		return AADAccessTokenResponse{}, fmt.Errorf("failed to fetch AAD token: %w", err)
 	}
 
-	if jwtFile, isPresent := os.LookupEnv("AZURE_FEDERATED_TOKEN_FILE"); isPresent {
-		jwtBytes, err := os.ReadFile(jwtFile)
-		if err != nil {
-			return "", err
-		}
-		return string(jwtBytes), nil
-	}
-
-	return "", fmt.Errorf("no JWT found")
+	return AADAccessTokenResponse{
+		AccessToken: tok.Token,
+		TenantID:    os.Getenv("AZURE_TENANT_ID"),
+	}, nil
 }
